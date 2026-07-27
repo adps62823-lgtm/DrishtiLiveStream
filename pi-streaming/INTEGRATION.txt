@@ -1,0 +1,65 @@
+INTEGRATION INSTRUCTIONS - adding livestream to your existing drishti.py
+==========================================================================
+Every change below is additive and clearly marked. If the livestream causes
+CPU/audio problems once running alongside STT/TTS/Gemini, just delete these
+three additions (or comment out the one line in main()) - nothing else in
+drishti.py changes or depends on this.
+
+------------------------------------------------------------------
+1. Copy webrtc_stream.py into ~/drishti_vision/ (same folder as drishti.py)
+------------------------------------------------------------------
+
+------------------------------------------------------------------
+2. Add this import near the top of drishti.py, with your other imports:
+------------------------------------------------------------------
+
+from webrtc_stream import start_webrtc_streaming
+
+------------------------------------------------------------------
+3. Add this ONE line inside main(), right after the camera-wait loop and
+   BEFORE `await speak("I'm fully ready now. " + HELP_TEXT)`:
+------------------------------------------------------------------
+
+    asyncio.create_task(start_webrtc_streaming(lambda: current_frame))
+
+That's it. This starts the livestream as a background task in the same
+event loop - it does not block, does not touch the Gemini flow, and reads
+the exact same `current_frame` your camera_thread already maintains.
+
+If SIGNALING_URL / SIGNALING_SECRET aren't set in .env, this task prints
+one message and does nothing else - completely inert, zero risk to run
+even before you've deployed anything.
+
+------------------------------------------------------------------
+4. Add these lines to your .env file on the Pi (see .env.example):
+------------------------------------------------------------------
+
+SIGNALING_URL=wss://your-signaling-server.onrender.com
+SIGNALING_SECRET=the_same_long_random_secret_used_on_render_and_vercel
+STREAM_FPS=8
+
+------------------------------------------------------------------
+5. Install the extra Python packages:
+------------------------------------------------------------------
+
+    pip install -r requirements_livestream.txt
+
+Note: aiortc pulls in some native dependencies (libavdevice etc. via PyAV).
+If `pip install aiortc` fails to build, run:
+    sudo apt install -y libavdevice-dev libavfilter-dev libavformat-dev \
+        libavcodec-dev libavutil-dev libswscale-dev libswresample-dev \
+        libopus-dev libvpx-dev libsrtp2-dev pkg-config
+then retry the pip install.
+
+------------------------------------------------------------------
+Honest note on real-world Pi 3B performance
+------------------------------------------------------------------
+A similar aiortc-based project (RTCBot) documents being tested down to
+Pi 3B specifically, confirming it *works*, but explicitly notes "extra
+latency, since the CPU had difficulty keeping up with encoding the video
+stream" on that hardware - because, same as your USB webcam here, it has
+no hardware video encode to fall back on. This matches the caution given
+earlier: expect this to add real, measurable CPU load once running
+alongside STT/TTS/Gemini. STREAM_FPS defaults to 8 specifically to keep
+this load as low as reasonably possible - lower it further (e.g. 5) if
+things feel strained once you test on the real device.

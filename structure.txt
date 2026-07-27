@@ -1,0 +1,51 @@
+drishti_livestream/
+│
+├── README.md                          Start here — full deployment order & testing checklist
+│
+├── signaling-server/                  Deploy to RENDER (free tier)
+│   ├── server.js                      WebSocket relay — pairs Pi + viewer, forwards SDP/ICE only
+│   └── package.json                   Dependencies: express, ws
+│
+├── family-website/                    Deploy to VERCEL (free tier)
+│   ├── .env.example                   Template for the 3 env vars Vercel needs
+│   ├── package.json                   Dependencies: next, react, react-dom
+│   ├── package-lock.json
+│   ├── next.config.js
+│   ├── middleware.js                  Guards /watch — redirects to /login if not authenticated
+│   └── app/
+│       ├── layout.js                  Root layout, loads fonts
+│       ├── page.js                    "/" — redirects to /login or /watch based on session
+│       ├── globals.css                Design system (colors, type, layout) for both pages
+│       ├── login/
+│       │   └── page.js                Password entry form
+│       ├── watch/
+│       │   └── page.js                WebRTC viewer — connects, shows live video + status
+│       └── api/
+│           ├── login/route.js         Checks FAMILY_PASSWORD, sets session cookie
+│           ├── logout/route.js        Clears session cookie
+│           └── signaling-token/route.js
+│                                       Returns SIGNALING_SECRET + server URL,
+│                                       ONLY if the session cookie is valid
+│
+└── pi-streaming/                      Copy into ~/drishti_vision/ on the PI
+    ├── webrtc_stream.py                The aiortc client — reads the shared camera
+    │                                    frame, streams to whichever viewer connects
+    ├── requirements_livestream.txt     pip install -r this, on the Pi
+    └── INTEGRATION.txt                 Exact lines to add to your existing drishti.py
+                                         (one import + one asyncio.create_task call)
+
+
+Data flow at a glance
+─────────────────────
+Pi (webrtc_stream.py) ──── registers ────► signaling-server (Render)
+                                                    │
+Family browser (Vercel) ── registers ──────────────┘
+                                                    │
+                                         relays SDP offer/answer + ICE
+                                                    │
+Pi ◄═══════════════ direct WebRTC video (bypasses Render entirely) ═══════════► Browser
+
+
+Nothing in drishti.py's existing STT / TTS / Gemini flow is touched by
+any file in this folder — pi-streaming/ only reads the same shared
+`current_frame` that already exists.

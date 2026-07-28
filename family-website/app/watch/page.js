@@ -76,6 +76,16 @@ export default function WatchPage() {
       pc.ontrack = (event) => {
         if (videoRef.current) {
           videoRef.current.srcObject = event.streams[0];
+          // autoPlay alone doesn't reliably start playback when the stream
+          // arrives after the <video> element has already mounted (as it
+          // does here) - some browsers need an explicit play() call.
+          videoRef.current.play().catch((err) => {
+            console.warn("Autoplay was blocked, trying muted playback:", err);
+            videoRef.current.muted = true;
+            videoRef.current.play().catch((err2) => {
+              console.error("Playback still failed even muted:", err2);
+            });
+          });
         }
         setConnectionState("live");
       };

@@ -74,17 +74,12 @@ export default function WatchPage() {
       pc.addTransceiver("video", { direction: "recvonly" });
 
       pc.ontrack = (event) => {
+        // Because the video is now always mounted, videoRef.current is guaranteed to exist
         if (videoRef.current) {
-          videoRef.current.srcObject = event.streams[0];
-          // autoPlay alone doesn't reliably start playback when the stream
-          // arrives after the <video> element has already mounted (as it
-          // does here) - some browsers need an explicit play() call.
+          videoRef.current.srcObject = event.streams[0] || new MediaStream([event.track]);
+          
           videoRef.current.play().catch((err) => {
-            console.warn("Autoplay was blocked, trying muted playback:", err);
-            videoRef.current.muted = true;
-            videoRef.current.play().catch((err2) => {
-              console.error("Playback still failed even muted:", err2);
-            });
+            console.warn("Autoplay was blocked:", err);
           });
         }
         setConnectionState("live");
@@ -143,9 +138,21 @@ export default function WatchPage() {
       </div>
 
       <div className="video-frame">
-        {connectionState === "live" ? (
-          <video ref={videoRef} autoPlay playsInline muted={false} />
-        ) : (
+        {/* We ALWAYS render the video element so the ref exists, just hide it if not live */}
+        <video 
+          ref={videoRef} 
+          autoPlay 
+          playsInline 
+          muted 
+          style={{ 
+            display: connectionState === "live" ? "block" : "none",
+            width: "100%",
+            maxWidth: "100%",
+            backgroundColor: "black"
+          }} 
+        />
+        
+        {connectionState !== "live" && (
           <p className="placeholder-text">
             {connectionState === "waiting"
               ? "The device isn't connected right now. This page will connect automatically as soon as it is."
